@@ -1,3 +1,5 @@
+import uuid
+
 from django.shortcuts import render
 
 # Create your views here.
@@ -10,7 +12,7 @@ from django import forms
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
-from DjangoBlog.utils import cache, get_md5, get_blog_setting
+from DjangoBlog.utils import cache, get_sha256, get_blog_setting
 from django.shortcuts import get_object_or_404
 from blog.models import Article, Category, Tag, Links, LinkShowType
 from comments.forms import CommentForm
@@ -187,7 +189,8 @@ class AuthorDetailView(ArticleListView):
     page_type = '作者文章归档'
 
     def get_queryset_cache_key(self):
-        author_name = self.kwargs['author_name']
+        from uuslug import slugify
+        author_name = slugify(self.kwargs['author_name'])
         cache_key = 'author_{author_name}_{page}'.format(
             author_name=author_name, page=self.page_number)
         return cache_key
@@ -273,7 +276,7 @@ def fileupload(request):
         sign = request.GET.get('sign', None)
         if not sign:
             return HttpResponseForbidden()
-        if not sign == get_md5(get_md5(settings.SECRET_KEY)):
+        if not sign == get_sha256(get_sha256(settings.SECRET_KEY)):
             return HttpResponseForbidden()
         response = []
         for filename in request.FILES:
@@ -293,7 +296,7 @@ def fileupload(request):
                 type='files' if not isimage else 'image', timestr=timestr, filename=filename)
             if not os.path.exists(basepath):
                 os.makedirs(basepath)
-            savepath = os.path.join(basepath, filename)
+            savepath = os.path.join(basepath, f"{uuid.uuid4().hex}{os.path.splitext(filename)[-1]}")
             with open(savepath, 'wb+') as wfile:
                 for chunk in request.FILES[filename].chunks():
                     wfile.write(chunk)
@@ -321,7 +324,7 @@ def refresh_memcache(request):
             return HttpResponseForbidden()
     except Exception as e:
         logger.error(e)
-        return HttpResponse(e)
+        return HttpResponse("error")
 
 
 def page_not_found_view(

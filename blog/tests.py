@@ -1,7 +1,7 @@
 from django.test import Client, RequestFactory, TestCase
 from blog.models import Article, Category, Tag, SideBar, Links
 from django.contrib.auth import get_user_model
-from DjangoBlog.utils import get_current_site, get_md5
+from DjangoBlog.utils import get_current_site, get_sha256
 from blog.forms import BlogSearchForm
 from django.core.paginator import Paginator
 from blog.templatetags.blog_tags import load_pagination_info, load_articletags
@@ -11,6 +11,7 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
 import os
+from django.core.management import call_command
 
 
 # Create your tests here.
@@ -75,6 +76,12 @@ class ArticleTest(TestCase):
             article.save()
             article.tags.add(tag)
             article.save()
+        from blog.documents import ELASTICSEARCH_ENABLED
+        if ELASTICSEARCH_ENABLED:
+            call_command("build_index")
+            response = self.client.get('/search', {'q': 'nicetitle'})
+            self.assertEqual(response.status_code, 200)
+
         response = self.client.get(article.get_absolute_url())
         self.assertEqual(response.status_code, 200)
         from DjangoBlog.spider_notify import SpiderNotify
@@ -116,7 +123,7 @@ class ArticleTest(TestCase):
 
         f = BlogSearchForm()
         f.search()
-        self.client.login(username='liangliangyy', password='liangliangyy')
+        # self.client.login(username='liangliangyy', password='liangliangyy')
         from DjangoBlog.spider_notify import SpiderNotify
         SpiderNotify.baidu_notify([article.get_full_url()])
 
@@ -131,6 +138,20 @@ class ArticleTest(TestCase):
         link.save()
         response = self.client.get('/links.html')
         self.assertEqual(response.status_code, 200)
+
+        rsp = self.client.get('/refresh')
+        self.assertEqual(rsp.status_code, 200)
+
+        response = self.client.get('/feed/')
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get('/sitemap.xml')
+        self.assertEqual(response.status_code, 200)
+        from DjangoBlog.utils import block_code
+        block = block_code("`python`", 'python')
+        self.client.get("/admin/blog/article/1/delete/")
+        self.client.get('/admin/servermanager/emailsendlog/')
+        self.client.get('admin/admin/logentry/')
 
     def __check_pagination__(self, p, type, value):
         s = load_pagination_info(p.page(1), type, value)
@@ -147,23 +168,6 @@ class ArticleTest(TestCase):
         response = self.client.get(s['next_url'])
         self.assertEqual(response.status_code, 200)
 
-    def test_validate_feed(self):
-        user = BlogUser.objects.get_or_create(
-            email="liangliangyy12@gmail.com",
-            username="liangliangyy")[0]
-        user.set_password("liangliangyy")
-        user.save()
-        self.client.login(username='liangliangyy', password='liangliangyy')
-
-        rsp = self.client.get('/refresh')
-        self.assertEqual(rsp.status_code, 403)
-
-        response = self.client.get('/feed/')
-        self.assertEqual(response.status_code, 200)
-
-        response = self.client.get('/sitemap.xml')
-        self.assertEqual(response.status_code, 200)
-
     def test_image(self):
         import requests
         rsp = requests.get(
@@ -173,26 +177,30 @@ class ArticleTest(TestCase):
             file.write(rsp.content)
         rsp = self.client.post('/upload')
         self.assertEqual(rsp.status_code, 403)
-        sign = get_md5(get_md5(settings.SECRET_KEY))
+        sign = get_sha256(get_sha256(settings.SECRET_KEY))
         with open(imagepath, 'rb') as file:
             imgfile = SimpleUploadedFile(
                 'python.png', file.read(), content_type='image/jpg')
             form_data = {'python.png': imgfile}
             rsp = self.client.post(
                 '/upload?sign=' + sign, form_data, follow=True)
-
             self.assertEqual(rsp.status_code, 200)
+        os.remove(imagepath)
         from DjangoBlog.utils import save_user_avatar, send_email
         send_email(['qq@qq.com'], 'testTitle', 'testContent')
         save_user_avatar(
             'https://www.python.org/static/img/python-logo@2x.png')
-        """
-        data = SimpleUploadedFile(imagepath, b'file_content', content_type='image/jpg')
-        rsp = self.client.post('/upload', {'django.jpg': data})
-        self.assertEqual(rsp.status_code, 200)
-        SimpleUploadedFile()
-        """
 
     def test_errorpage(self):
         rsp = self.client.get('/eee')
         self.assertEqual(rsp.status_code, 404)
+
+    def test_commands(self):
+        from blog.documents import ELASTICSEARCH_ENABLED
+        if ELASTICSEARCH_ENABLED:
+            call_command("build_index")
+        call_command("ping_baidu", "all")
+        call_command("create_testdata")
+        call_command("clear_cache")
+        call_command("sync_user_avatar")
+        call_command("build_search_words")

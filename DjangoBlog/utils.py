@@ -2,28 +2,21 @@
 # encoding: utf-8
 
 
-"""
-@version: ??
-@author: liangliangyy
-@license: MIT Licence
-@contact: liangliangyy@gmail.com
-@site: https://www.lylinux.net/
-@software: PyCharm
-@file: utils.py
-@time: 2017/1/19 上午2:30
-"""
-from django.core.cache import cache
-from django.contrib.sites.models import Site
-from hashlib import md5
+import logging
+import os
+import random
+import string
+import uuid
+from hashlib import sha256
+
 import mistune
+import requests
+from django.contrib.sites.models import Site
+from django.core.cache import cache
 from mistune import escape, escape_link
 from pygments import highlight
-from pygments.lexers import get_lexer_by_name
 from pygments.formatters import html
-import logging
-import requests
-import uuid
-import os
+from pygments.lexers import get_lexer_by_name
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +27,8 @@ def get_max_articleid_commentid():
     return (Article.objects.latest().pk, Comment.objects.latest().pk)
 
 
-def get_md5(str):
-    m = md5(str.encode('utf-8'))
+def get_sha256(str):
+    m = sha256(str.encode('utf-8'))
     return m.hexdigest()
 
 
@@ -50,7 +43,7 @@ def cache_decorator(expiration=3 * 60):
             if not key:
                 unique_str = repr((func, args, kwargs))
 
-                m = md5(unique_str.encode('utf-8'))
+                m = sha256(unique_str.encode('utf-8'))
                 key = m.hexdigest()
             value = cache.get(key)
             if value is not None:
@@ -185,6 +178,11 @@ def send_email(emailto, title, content):
         emailto=emailto,
         title=title,
         content=content)
+
+
+def generate_code() -> str:
+    """生成随机数验证码"""
+    return ''.join(random.sample(string.digits, 6))
 
 
 def parse_dict_to_url(dict):
