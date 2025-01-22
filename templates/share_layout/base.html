@@ -1,5 +1,6 @@
 {% load static %}
 {% load cache %}
+{% load i18n %}
 {% load compress %}
 <!DOCTYPE html>
 <!--[if IE 7]>
@@ -29,6 +30,7 @@
     <link rel='stylesheet preload' as="font" id='twentytwelve-fonts-css'
           href='{% static 'blog/fonts/fonts.css' %}'
           type='text/css' media='all'/>
+    <link rel="dns-prefetch" href="//cdn.mathjax.org"/>
     {% compress css %}
 
         <link rel='stylesheet' id='twentytwelve-style-css' href='{% static 'blog/css/style.css' %}' type='text/css'
@@ -43,6 +45,9 @@
         {% block compress_css %}
         {% endblock %}
     {% endcompress %}
+    {% if GLOBAL_HEADER %}
+        {{ GLOBAL_HEADER|safe }}
+    {% endif %}
 </head>
 
 <body class="home blog custom-font-enabled">
@@ -53,10 +58,29 @@
             </h1>
             <h2 class="site-description">{{ SITE_DESCRIPTION }}</h2>
         </hgroup>
+        {% load i18n %}
 
-        {% cache 36000 nav %}
-            {% include 'share_layout/nav.html' %}
-        {% endcache %}
+
+{#        <div class="i18n-selector">#}
+{#            <form action="{% url 'set_language' %}" method="post" id="i18n-form">{% csrf_token %}#}
+{#                <input name="next" type="hidden" value="{{ redirect_to }}">#}
+{#                <select name="language" class="i18n-select" >#}
+{#                    {% get_current_language as LANGUAGE_CODE %}#}
+{#                    {% get_available_languages as LANGUAGES %}#}
+{#                    {% get_language_info_list for LANGUAGES as languages %}#}
+{#                    {% for language in languages %}#}
+{#                        <option value="{{ language.code }}"{% if language.code == LANGUAGE_CODE %} selected{% endif %}>#}
+{#                            {{ language.name_local }} ({{ language.code }})#}
+{#                        </option>#}
+{#                    {% endfor %}#}
+{#                </select>#}
+{#                                <input type="submit" value="Go">#}
+{#            </form>#}
+{#        </div>#}
+
+
+        {% include 'share_layout/nav.html' %}
+
 
     </header><!-- #masthead -->
     <div id="main" class="wrapper">
@@ -75,11 +99,13 @@
 
 </body>
 <footer>
+    <script src="//cdn.bootcss.com/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     {% compress js %}
         <script type="text/javascript" src="{% static 'blog/js/jquery-3.6.0.min.js' %}"></script>
         <script type="text/javascript" src="{% static 'blog/js/nprogress.js' %}"></script>
         <script src="{% static 'blog/js/blog.js' %}" type="application/javascript"></script>
         <script src="{% static 'blog/js/navigation.js' %}" type="application/javascript"></script>
+        <script src="{% static 'mathjax/js/mathjax-config.js' %}" type="application/javascript"></script>
         {% block compress_js %}
         {% endblock %}
     {% endcompress %}

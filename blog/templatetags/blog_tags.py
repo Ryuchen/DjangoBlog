@@ -3,18 +3,18 @@ import logging
 import random
 import urllib
 
-import bleach
 from django import template
 from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.template.defaultfilters import stringfilter
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
 from blog.models import Article, Category, Tag, Links, SideBar, LinkShowType
 from comments.models import Comment
-from djangoblog.utils import CommonMarkdown
+from djangoblog.utils import CommonMarkdown, sanitize_html
 from djangoblog.utils import cache
 from djangoblog.utils import get_current_site
 from oauth.models import OAuthUser
@@ -45,7 +45,6 @@ def datetimeformat(data):
 @register.filter()
 @stringfilter
 def custom_markdown(content):
-    content = bleach.clean(content)
     return mark_safe(CommonMarkdown.get_markdown(content))
 
 
@@ -53,7 +52,14 @@ def custom_markdown(content):
 def get_markdown_toc(content):
     from djangoblog.utils import CommonMarkdown
     body, toc = CommonMarkdown.get_markdown_with_toc(content)
-    return mark_safe(toc), mark_safe(body)
+    return mark_safe(toc)
+
+
+@register.filter()
+@stringfilter
+def comment_markdown(content):
+    content = CommonMarkdown.get_markdown(content)
+    return mark_safe(sanitize_html(content))
 
 
 @register.filter(is_safe=True)
@@ -89,7 +95,7 @@ def load_breadcrumb(article):
     from djangoblog.utils import get_blog_setting
     blogsetting = get_blog_setting()
     site = get_current_site().domain
-    names.append((blogsetting.sitename, '/'))
+    names.append((blogsetting.site_name, '/'))
     names = names[::-1]
 
     return {
@@ -140,7 +146,7 @@ def load_sidebar(user, linktype):
             is_enable=True).order_by('sequence')
         most_read_articles = Article.objects.filter(status='p').order_by(
             '-views')[:blogsetting.sidebar_article_count]
-        dates = Article.objects.datetimes('created_time', 'month', order='DESC')
+        dates = Article.objects.datetimes('creation_time', 'month', order='DESC')
         links = Links.objects.filter(is_enable=True).filter(
             Q(show_type=str(linktype)) | Q(show_type=LinkShowType.A))
         commment_list = Comment.objects.filter(is_enable=True).order_by(
@@ -174,6 +180,7 @@ def load_sidebar(user, linktype):
             'extra_sidebars': extra_sidebars
         }
         cache.set("sidebar" + linktype, value, 60 * 60 * 60 * 3)
+        logger.info('set sidebar cache.key:{key}'.format(key="sidebar" + linktype))
         value['user'] = user
         return value
 
@@ -285,8 +292,9 @@ def load_article_detail(article, isindex, user):
 def gravatar_url(email, size=40):
     """获得gravatar头像"""
     cachekey = 'gravatat/' + email
-    if cache.get(cachekey):
-        return cache.get(cachekey)
+    url = cache.get(cachekey)
+    if url:
+        return url
     else:
         usermodels = OAuthUser.objects.filter(email=email)
         if usermodels:
@@ -295,12 +303,12 @@ def gravatar_url(email, size=40):
                 return o[0].picture
         email = email.encode('utf-8')
 
-        default = "https://resource.lylinux.net/image/2017/03/26/120117.jpg".encode(
-            'utf-8')
+        default = static('blog/img/avatar.png')
 
         url = "https://www.gravatar.com/avatar/%s?%s" % (hashlib.md5(
             email.lower()).hexdigest(), urllib.parse.urlencode({'d': default, 's': str(size)}))
         cache.set(cachekey, url, 60 * 60 * 10)
+        logger.info('set gravatar cache.key:{key}'.format(key=cachekey))
         return url
 
 

@@ -4,15 +4,6 @@ services:
   db:
     image: mysql:latest
     restart: always
-    command:
-      - mysqld
-      - --max_connections=3000
-      - --wait_timeout=600
-      - --interactive_timeout=600
-      - --thread_cache_size=50
-      - --default-authentication-plugin=mysql_native_password
-      - --character-set-server=utf8
-      - --collation-server=utf8_general_ci
     environment:
       - MYSQL_DATABASE=djangoblog
       - MYSQL_ROOT_PASSWORD=DjAnGoBlOg!2!Q@W#E
@@ -21,7 +12,7 @@ services:
     volumes:
       - ./bin/datas/mysql/:/var/lib/mysql
     depends_on:
-      - memcached
+      - redis
     container_name: db
 
   djangoblog:
@@ -32,16 +23,18 @@ services:
       - "8000:8000"
     volumes:
       - ./collectedstatic:/code/djangoblog/collectedstatic
+      - ./logs:/code/djangoblog/logs
+      - ./uploads:/code/djangoblog/uploads
     environment:
       - DJANGO_MYSQL_DATABASE=djangoblog
       - DJANGO_MYSQL_USER=root
       - DJANGO_MYSQL_PASSWORD=DjAnGoBlOg!2!Q@W#E
       - DJANGO_MYSQL_HOST=db
       - DJANGO_MYSQL_PORT=3306
-      - DJANGO_MEMCACHED_LOCATION=memcached:11211
+      - DJANGO_REDIS_URL=redis:6379
     links:
       - db
-      - memcached
+      - redis
     depends_on:
       - db
     container_name: djangoblog
@@ -58,9 +51,9 @@ services:
       - djangoblog:djangoblog
     container_name: nginx
 
-  memcached:
+  redis:
     restart: always
-    image: memcached:latest
-    container_name: memcached
+    image: redis:latest
+    container_name: redis
     ports:
-      - "11211:11211"
+      - "6379:6379"

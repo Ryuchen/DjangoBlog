@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import urllib.parse
 from abc import ABCMeta, abstractmethod
 
@@ -49,6 +50,10 @@ class BaseOauthManager(metaclass=ABCMeta):
 
     @abstractmethod
     def get_oauth_userinfo(self):
+        pass
+
+    @abstractmethod
+    def get_picture(self, metadata):
         pass
 
     def do_get(self, url, params, headers=None):
@@ -122,9 +127,9 @@ class WBOauthManager(BaseOauthManager):
         try:
             datas = json.loads(rsp)
             user = OAuthUser()
-            user.matedata = rsp
+            user.metadata = rsp
             user.picture = datas['avatar_large']
-            user.nikename = datas['screen_name']
+            user.nickname = datas['screen_name']
             user.openid = datas['id']
             user.type = 'weibo'
             user.token = self.access_token
@@ -136,8 +141,33 @@ class WBOauthManager(BaseOauthManager):
             logger.error('weibo oauth error.rsp:' + rsp)
             return None
 
+    def get_picture(self, metadata):
+        datas = json.loads(metadata)
+        return datas['avatar_large']
 
-class GoogleOauthManager(BaseOauthManager):
+
+class ProxyManagerMixin:
+    def __init__(self, *args, **kwargs):
+        if os.environ.get("HTTP_PROXY"):
+            self.proxies = {
+                "http": os.environ.get("HTTP_PROXY"),
+                "https": os.environ.get("HTTP_PROXY")
+            }
+        else:
+            self.proxies = None
+
+    def do_get(self, url, params, headers=None):
+        rsp = requests.get(url=url, params=params, headers=headers, proxies=self.proxies)
+        logger.info(rsp.text)
+        return rsp.text
+
+    def do_post(self, url, params, headers=None):
+        rsp = requests.post(url, params, headers=headers, proxies=self.proxies)
+        logger.info(rsp.text)
+        return rsp.text
+
+
+class GoogleOauthManager(ProxyManagerMixin, BaseOauthManager):
     AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
     TOKEN_URL = 'https://www.googleapis.com/oauth2/v4/token'
     API_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
@@ -161,7 +191,6 @@ class GoogleOauthManager(BaseOauthManager):
             'redirect_uri': self.callback_url,
             'scope': 'openid email',
         }
-        # url = self.AUTH_URL + "?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
         url = self.AUTH_URL + "?" + urllib.parse.urlencode(params)
         return url
 
@@ -197,9 +226,9 @@ class GoogleOauthManager(BaseOauthManager):
 
             datas = json.loads(rsp)
             user = OAuthUser()
-            user.matedata = rsp
+            user.metadata = rsp
             user.picture = datas['picture']
-            user.nikename = datas['name']
+            user.nickname = datas['name']
             user.openid = datas['sub']
             user.token = self.access_token
             user.type = 'google'
@@ -211,8 +240,12 @@ class GoogleOauthManager(BaseOauthManager):
             logger.error('google oauth error.rsp:' + rsp)
             return None
 
+    def get_picture(self, metadata):
+        datas = json.loads(metadata)
+        return datas['picture']
 
-class GitHubOauthManager(BaseOauthManager):
+
+class GitHubOauthManager(ProxyManagerMixin, BaseOauthManager):
     AUTH_URL = 'https://github.com/login/oauth/authorize'
     TOKEN_URL = 'https://github.com/login/oauth/access_token'
     API_URL = 'https://api.github.com/user'
@@ -229,14 +262,13 @@ class GitHubOauthManager(BaseOauthManager):
             access_token=access_token,
             openid=openid)
 
-    def get_authorization_url(self, nexturl='/'):
+    def get_authorization_url(self, next_url='/'):
         params = {
             'client_id': self.client_id,
             'response_type': 'code',
-            'redirect_uri': self.callback_url + '&next_url=' + nexturl,
+            'redirect_uri': f'{self.callback_url}&next_url={next_url}',
             'scope': 'user'
         }
-        # url = self.AUTH_URL + "?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
         url = self.AUTH_URL + "?" + urllib.parse.urlencode(params)
         return url
 
@@ -268,11 +300,11 @@ class GitHubOauthManager(BaseOauthManager):
             datas = json.loads(rsp)
             user = OAuthUser()
             user.picture = datas['avatar_url']
-            user.nikename = datas['name']
+            user.nickname = datas['name']
             user.openid = datas['id']
             user.type = 'github'
             user.token = self.access_token
-            user.matedata = rsp
+            user.metadata = rsp
             if 'email' in datas and datas['email']:
                 user.email = datas['email']
             return user
@@ -281,10 +313,14 @@ class GitHubOauthManager(BaseOauthManager):
             logger.error('github oauth error.rsp:' + rsp)
             return None
 
+    def get_picture(self, metadata):
+        datas = json.loads(metadata)
+        return datas['avatar_url']
 
-class FaceBookOauthManager(BaseOauthManager):
-    AUTH_URL = 'https://www.facebook.com/v2.10/dialog/oauth'
-    TOKEN_URL = 'https://graph.facebook.com/v2.10/oauth/access_token'
+
+class FaceBookOauthManager(ProxyManagerMixin, BaseOauthManager):
+    AUTH_URL = 'https://www.facebook.com/v16.0/dialog/oauth'
+    TOKEN_URL = 'https://graph.facebook.com/v16.0/oauth/access_token'
     API_URL = 'https://graph.facebook.com/me'
     ICON_NAME = 'facebook'
 
@@ -299,11 +335,11 @@ class FaceBookOauthManager(BaseOauthManager):
             access_token=access_token,
             openid=openid)
 
-    def get_authorization_url(self, nexturl='/'):
+    def get_authorization_url(self, next_url='/'):
         params = {
             'client_id': self.client_id,
             'response_type': 'code',
-            'redirect_uri': self.callback_url,  # + '&next_url=' + nexturl,
+            'redirect_uri': self.callback_url,
             'scope': 'email,public_profile'
         }
         url = self.AUTH_URL + "?" + urllib.parse.urlencode(params)
@@ -337,11 +373,11 @@ class FaceBookOauthManager(BaseOauthManager):
             rsp = self.do_get(self.API_URL, params)
             datas = json.loads(rsp)
             user = OAuthUser()
-            user.nikename = datas['name']
+            user.nickname = datas['name']
             user.openid = datas['id']
             user.type = 'facebook'
             user.token = self.access_token
-            user.matedata = rsp
+            user.metadata = rsp
             if 'email' in datas and datas['email']:
                 user.email = datas['email']
             if 'picture' in datas and datas['picture'] and datas['picture']['data'] and datas['picture']['data']['url']:
@@ -350,6 +386,10 @@ class FaceBookOauthManager(BaseOauthManager):
         except Exception as e:
             logger.error(e)
             return None
+
+    def get_picture(self, metadata):
+        datas = json.loads(metadata)
+        return str(datas['picture']['data']['url'])
 
 
 class QQOauthManager(BaseOauthManager):
@@ -370,11 +410,11 @@ class QQOauthManager(BaseOauthManager):
             access_token=access_token,
             openid=openid)
 
-    def get_authorization_url(self, nexturl='/'):
+    def get_authorization_url(self, next_url='/'):
         params = {
             'response_type': 'code',
             'client_id': self.client_id,
-            'redirect_uri': self.callback_url + '&next_url=' + nexturl,
+            'redirect_uri': self.callback_url + '&next_url=' + next_url,
         }
         url = self.AUTH_URL + "?" + urllib.parse.urlencode(params)
         return url
@@ -392,7 +432,7 @@ class QQOauthManager(BaseOauthManager):
             d = urllib.parse.parse_qs(rsp)
             if 'access_token' in d:
                 token = d['access_token']
-                self.access_token = token
+                self.access_token = token[0]
                 return token
         else:
             raise OAuthAccessTokenException(rsp)
@@ -425,16 +465,20 @@ class QQOauthManager(BaseOauthManager):
             logger.info(rsp)
             obj = json.loads(rsp)
             user = OAuthUser()
-            user.nikename = obj['nickname']
+            user.nickname = obj['nickname']
             user.openid = openid
             user.type = 'qq'
             user.token = self.access_token
-            user.matedata = rsp
+            user.metadata = rsp
             if 'email' in obj:
                 user.email = obj['email']
             if 'figureurl' in obj:
                 user.picture = str(obj['figureurl'])
             return user
+
+    def get_picture(self, metadata):
+        datas = json.loads(metadata)
+        return str(datas['figureurl'])
 
 
 @cache_decorator(expiration=100 * 60)

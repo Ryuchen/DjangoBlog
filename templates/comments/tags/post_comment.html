@@ -13,22 +13,13 @@
                 {{ form.body }}
                 {{ form.body.errors }}
             </p>
-            <p class="comment-form-author">
-                {% if not form.name.is_hidden %}
-                    {{ form.name.label_tag }}
-                {% endif %}
-                {{ form.name }}
-                {{ form.name.errors }}
-            <p class="comment-form-email">
-                {% if not form.email.is_hidden %}
-                    {{ form.email.label_tag }}
-                {% endif %}
-                {{ form.email }}
-                {{ form.email.errors }}
-            </p>
             {{ form.parent_comment_id }}
             <div class="form-submit">
-                <span class="comment-markdown"> 支持markdown</span>
+                {% if COMMENT_NEED_REVIEW %}
+                    <span class="comment-markdown"> 支持markdown，评论经审核后才会显示。</span>
+                {% else %}
+                    <span class="comment-markdown"> 支持markdown。</span>
+                {% endif %}
                 <input name="submit" type="submit" id="submit" class="submit" value="发表评论"/>
                 <small class="cancel-comment" id="cancel_comment" style="display: none">
                     <a href="javascript:void(0)" id="cancel-comment-reply-link" onclick="cancel_reply()">取消回复</a>

@@ -2,7 +2,7 @@ version: '3'
 
 services:
   es:
-    image: liangliangyy/elasticsearch-analysis-ik:7.16.1
+    image: liangliangyy/elasticsearch-analysis-ik:8.6.1
     container_name: es
     restart: always
     environment:
@@ -14,7 +14,7 @@ services:
       - ./bin/datas/es/:/usr/share/elasticsearch/data/
 
   kibana:
-    image: kibana:7.13.2
+    image: kibana:8.6.1
     restart: always
     container_name: kibana
     ports:
@@ -30,6 +30,7 @@ services:
       - "8000:8000"
     volumes:
       - ./collectedstatic:/code/djangoblog/collectedstatic
+      - ./uploads:/code/djangoblog/uploads
     environment:
       - DJANGO_MYSQL_DATABASE=djangoblog
       - DJANGO_MYSQL_USER=root

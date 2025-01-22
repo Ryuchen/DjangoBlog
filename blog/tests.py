@@ -4,15 +4,17 @@ from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.paginator import Paginator
+from django.templatetags.static import static
 from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from djangoblog.utils import get_current_site, get_sha256
 from accounts.models import BlogUser
 from blog.forms import BlogSearchForm
 from blog.models import Article, Category, Tag, SideBar, Links
 from blog.templatetags.blog_tags import load_pagination_info, load_articletags
+from djangoblog.utils import get_current_site, get_sha256
+from oauth.models import OAuthUser, OAuthConfig
 
 
 # Create your tests here.
@@ -44,7 +46,7 @@ class ArticleTest(TestCase):
 
         category = Category()
         category.name = "category"
-        category.created_time = timezone.now()
+        category.creation_time = timezone.now()
         category.last_mod_time = timezone.now()
         category.save()
 
@@ -98,29 +100,24 @@ class ArticleTest(TestCase):
         s = load_articletags(article)
         self.assertIsNotNone(s)
 
-        rsp = self.client.get('/refresh')
-        self.assertEqual(rsp.status_code, 302)
-
         self.client.login(username='liangliangyy', password='liangliangyy')
-        rsp = self.client.get('/refresh')
-        self.assertEqual(rsp.status_code, 200)
 
         response = self.client.get(reverse('blog:archives'))
         self.assertEqual(response.status_code, 200)
 
-        p = Paginator(Article.objects.all(), 2)
-        self.__check_pagination__(p, '', '')
+        p = Paginator(Article.objects.all(), settings.PAGINATE_BY)
+        self.check_pagination(p, '', '')
 
-        p = Paginator(Article.objects.filter(tags=tag), 2)
-        self.__check_pagination__(p, '分类标签归档', tag.slug)
+        p = Paginator(Article.objects.filter(tags=tag), settings.PAGINATE_BY)
+        self.check_pagination(p, '分类标签归档', tag.slug)
 
         p = Paginator(
             Article.objects.filter(
-                author__username='liangliangyy'), 2)
-        self.__check_pagination__(p, '作者文章归档', 'liangliangyy')
+                author__username='liangliangyy'), settings.PAGINATE_BY)
+        self.check_pagination(p, '作者文章归档', 'liangliangyy')
 
-        p = Paginator(Article.objects.filter(category=category), 2)
-        self.__check_pagination__(p, '分类目录归档', category.slug)
+        p = Paginator(Article.objects.filter(category=category), settings.PAGINATE_BY)
+        self.check_pagination(p, '分类目录归档', category.slug)
 
         f = BlogSearchForm()
         f.search()
@@ -140,9 +137,6 @@ class ArticleTest(TestCase):
         response = self.client.get('/links.html')
         self.assertEqual(response.status_code, 200)
 
-        rsp = self.client.get('/refresh')
-        self.assertEqual(rsp.status_code, 200)
-
         response = self.client.get('/feed/')
         self.assertEqual(response.status_code, 200)
 
@@ -151,27 +145,24 @@ class ArticleTest(TestCase):
 
         self.client.get("/admin/blog/article/1/delete/")
         self.client.get('/admin/servermanager/emailsendlog/')
-        self.client.get('admin/admin/logentry/')
+        self.client.get('/admin/admin/logentry/')
+        self.client.get('/admin/admin/logentry/1/change/')
 
-    def __check_pagination__(self, p, type, value):
-        s = load_pagination_info(p.page(1), type, value)
-        self.assertIsNotNone(s)
-        response = self.client.get(s['previous_url'])
-        self.assertEqual(response.status_code, 200)
-        response = self.client.get(s['next_url'])
-        self.assertEqual(response.status_code, 200)
-
-        s = load_pagination_info(p.page(2), type, value)
-        self.assertIsNotNone(s)
-        response = self.client.get(s['previous_url'])
-        self.assertEqual(response.status_code, 200)
-        response = self.client.get(s['next_url'])
-        self.assertEqual(response.status_code, 200)
+    def check_pagination(self, p, type, value):
+        for page in range(1, p.num_pages + 1):
+            s = load_pagination_info(p.page(page), type, value)
+            self.assertIsNotNone(s)
+            if s['previous_url']:
+                response = self.client.get(s['previous_url'])
+                self.assertEqual(response.status_code, 200)
+            if s['next_url']:
+                response = self.client.get(s['next_url'])
+                self.assertEqual(response.status_code, 200)
 
     def test_image(self):
         import requests
         rsp = requests.get(
-            'https://www.python.org/static/img/python-logo@2x.png')
+            'https://www.python.org/static/img/python-logo.png')
         imagepath = os.path.join(settings.BASE_DIR, 'python.png')
         with open(imagepath, 'wb') as file:
             file.write(rsp.content)
@@ -189,13 +180,48 @@ class ArticleTest(TestCase):
         from djangoblog.utils import save_user_avatar, send_email
         send_email(['qq@qq.com'], 'testTitle', 'testContent')
         save_user_avatar(
-            'https://www.python.org/static/img/python-logo@2x.png')
+            'https://www.python.org/static/img/python-logo.png')
 
     def test_errorpage(self):
         rsp = self.client.get('/eee')
         self.assertEqual(rsp.status_code, 404)
 
     def test_commands(self):
+        user = BlogUser.objects.get_or_create(
+            email="liangliangyy@gmail.com",
+            username="liangliangyy")[0]
+        user.set_password("liangliangyy")
+        user.is_staff = True
+        user.is_superuser = True
+        user.save()
+
+        c = OAuthConfig()
+        c.type = 'qq'
+        c.appkey = 'appkey'
+        c.appsecret = 'appsecret'
+        c.save()
+
+        u = OAuthUser()
+        u.type = 'qq'
+        u.openid = 'openid'
+        u.user = user
+        u.picture = static("/blog/img/avatar.png")
+        u.metadata = '''
+{
+"figureurl": "https://qzapp.qlogo.cn/qzapp/101513904/C740E30B4113EAA80E0D9918ABC78E82/30"
+}'''
+        u.save()
+
+        u = OAuthUser()
+        u.type = 'qq'
+        u.openid = 'openid1'
+        u.picture = 'https://qzapp.qlogo.cn/qzapp/101513904/C740E30B4113EAA80E0D9918ABC78E82/30'
+        u.metadata = '''
+        {
+       "figureurl": "https://qzapp.qlogo.cn/qzapp/101513904/C740E30B4113EAA80E0D9918ABC78E82/30"
+        }'''
+        u.save()
+
         from blog.documents import ELASTICSEARCH_ENABLED
         if ELASTICSEARCH_ENABLED:
             call_command("build_index")

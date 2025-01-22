@@ -3,7 +3,7 @@
 🌍
 *[English](README-en.md) ∙ [简体中文](README.md)*
 
-A blog system based on `python3.8` and `Django3.0`.
+A blog system based on `python3.8` and `Django4.0`.
 
 
 [![Django CI](https://github.com/liangliangyy/DjangoBlog/actions/workflows/django.yml/badge.svg)](https://github.com/liangliangyy/DjangoBlog/actions/workflows/django.yml) [![CodeQL](https://github.com/liangliangyy/DjangoBlog/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/liangliangyy/DjangoBlog/actions/workflows/codeql-analysis.yml) [![codecov](https://codecov.io/gh/liangliangyy/DjangoBlog/branch/master/graph/badge.svg)](https://codecov.io/gh/liangliangyy/DjangoBlog) [![license](https://img.shields.io/github/license/liangliangyy/djangoblog.svg)]()  
@@ -22,7 +22,7 @@ A blog system based on `python3.8` and `Django3.0`.
 - Website exception email notification. When there is an unhandle exception, system will send an email notification.
 - Wechat official account feature integrated. Now, you can use wechat official account to manage your VPS.
 
-## Installation
+## Installation:
 Change MySQL client from `pymysql` to `mysqlclient`, more details please reference [pypi](https://pypi.org/project/mysqlclient/) , checkout preperation before installation.
 
 Install via pip: `pip install -Ur requirements.txt`
@@ -77,36 +77,32 @@ CREATE DATABASE `djangoblog` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8
 
 Run the following commands in Terminal:
 ```bash
-./manage.py makemigrations
-./manage.py migrate
-```
-
-**Attention: ** Before you using `./manage.py`, make sure the `python` command in your system is towards to `python 3.6` or above version. Otherwise you may solve this by one of the two following methods:
-- Modify the first line in `manage.py`, change `#!/usr/bin/env python` to `#!/usr/bin/env python3`
-- Just run with: `python3 ./manage.py makemigrations`
+python manage.py makemigrations
+python manage.py migrate
+```  
 
 ### Create super user
 
 Run command in terminal:
 ```bash
-./manage.py createsuperuser
+python manage.py createsuperuser
 ```
 
 ### Create testing data
 Run command in terminal:
 ```bash
-./manage.py create_testdata
+python manage.py create_testdata
 ```
 
 ### Collect static files
 Run command in terminal:
 ```bash
-./manage.py collectstatic --noinput
-./manage.py compress --force
+python manage.py collectstatic --noinput
+python manage.py compress --force
 ```
 
 ### Getting start to run server
-Execute: `./manage.py runserver`
+Execute: `python manage.py runserver`
 
 Open up a browser and visit: http://127.0.0.1:8000/ , the you will see the blog.
 

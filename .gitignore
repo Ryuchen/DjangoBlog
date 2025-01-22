@@ -45,11 +45,11 @@ coverage.xml
 *,cover
 
 # Translations
-*.mo
 *.pot
 
 # Django stuff:
 *.log
+logs/
 
 # Sphinx documentation
 docs/_build/
@@ -62,12 +62,10 @@ target/
 # http://www.jetbrains.com/pycharm/webhelp/project.html
 .idea
 .iml
-
+static/
 # virtualenv
 venv/
 
-migrations/
-!migrations/__init__.py
 collectedstatic/
 djangoblog/whoosh_index/
 google93fd32dbd906620a.html

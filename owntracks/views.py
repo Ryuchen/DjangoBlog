@@ -5,11 +5,14 @@ import json
 import logging
 from itertools import groupby
 
+import django.utils.timezone
 import requests
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
+from django.utils.timezone import utc
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import OwnTrackLog
@@ -45,7 +48,7 @@ def manage_owntrack_log(request):
 @login_required
 def show_maps(request):
     if request.user.is_superuser:
-        defaultdate = str(datetime.datetime.now().date())
+        defaultdate = str(timezone.now().date())
         date = request.GET.get('date', defaultdate)
         context = {
             'date': date
@@ -58,7 +61,7 @@ def show_maps(request):
 
 @login_required
 def show_log_dates(request):
-    dates = OwnTrackLog.objects.values_list('created_time', flat=True)
+    dates = OwnTrackLog.objects.values_list('creation_time', flat=True)
     results = list(sorted(set(map(lambda x: x.strftime('%Y-%m-%d'), dates))))
 
     context = {
@@ -85,7 +88,8 @@ def convert_to_amap(locations):
         }
         rsp = requests.get(url=api, params=query)
         result = json.loads(rsp.text)
-        convert_result.append(result['locations'])
+        if "locations" in result:
+            convert_result.append(result['locations'])
         item = list(itertools.islice(it, 30))
 
     return ";".join(convert_result)
@@ -93,9 +97,6 @@ def convert_to_amap(locations):
 
 @login_required
 def get_datas(request):
-    import django.utils.timezone
-    from django.utils.timezone import utc
-
     now = django.utils.timezone.now().replace(tzinfo=utc)
     querydate = django.utils.timezone.datetime(
         now.year, now.month, now.day, 0, 0, 0)
@@ -103,10 +104,9 @@ def get_datas(request):
         date = list(map(lambda x: int(x), request.GET.get('date').split('-')))
         querydate = django.utils.timezone.datetime(
             date[0], date[1], date[2], 0, 0, 0)
-    querydate = django.utils.timezone.make_aware(querydate)
     nextdate = querydate + datetime.timedelta(days=1)
     models = OwnTrackLog.objects.filter(
-        created_time__range=(querydate, nextdate))
+        creation_time__range=(querydate, nextdate))
     result = list()
     if models and len(models):
         for tid, item in groupby(
@@ -115,10 +115,14 @@ def get_datas(request):
             d = dict()
             d["name"] = tid
             paths = list()
-            locations = convert_to_amap(
-                sorted(item, key=lambda x: x.created_time))
-            for i in locations.split(';'):
-                paths.append(i.split(','))
+            # 使用高德转换后的经纬度
+            # locations = convert_to_amap(
+            #     sorted(item, key=lambda x: x.creation_time))
+            # for i in locations.split(';'):
+            #     paths.append(i.split(','))
+            # 使用GPS原始经纬度
+            for location in sorted(item, key=lambda x: x.creation_time):
+                paths.append([str(location.lon), str(location.lat)])
             d["path"] = paths
             result.append(d)
     return JsonResponse(result, safe=False)
